@@ -130,15 +130,6 @@ filled_flow_data <- function(SITE) {
 # predictions in 2016
 section_plot(SITE = "DPAC", YEAR = 2016, RAIN_MULT = 1,
              START = "1115") 
-# predictions in 2017
-section_plot(SITE = "DPAC", YEAR = 2017, RAIN_MULT = 1,
-             END = "0315") 
-section_plot(SITE = "DPAC", YEAR = 2017, RAIN_MULT = 1,
-             START = "0315", END = "0515") 
-section_plot(SITE = "DPAC", YEAR = 2017, RAIN_MULT = 1,
-             START = "0515", END = "0805") 
-section_plot(SITE = "DPAC", YEAR = 2017, RAIN_MULT = 1,
-             START = "1015") 
 
 # Fig 3 Annual Tile Flow by Treatment
 annual_flow_plot(SITE = "DPAC", GROUP = "plotid")
@@ -183,8 +174,6 @@ section_plot(SITE = "SERF_IA", YEAR = 2017, RAIN_MULT = 1,
              END = "0215") 
 section_plot(SITE = "SERF_IA", YEAR = 2017, RAIN_MULT = 1,
              START = "0305", END = "0515") 
-section_plot(SITE = "SERF_IA", YEAR = 2017, RAIN_MULT = 1,
-             START = "0701", END = "0905") 
 
 # Fig 3 Annual Tile Flow by Treatment
 annual_flow_plot(SITE = "SERF_IA", GROUP = "plotid")

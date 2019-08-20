@@ -1,5 +1,6 @@
-# This script fits linear regression model to replicated study data and 
-# predictes missing value in one of the reps when missing
+# This script prepares data for farther analysis by completing it.
+# It includes predicting missing values by dup-regression, which is part of the gap-filling method proposed;
+# But here it is used only to insure we have a complete input data for the sake of the paper.
 
 source(file = '00_project_settings.R')
 
@@ -7,11 +8,11 @@ source(file = '00_project_settings.R')
 
 # Read Data ---------------------------------------------------------------
 
-df <- read_csv('Data/Input_Data/daily_tile_flow.csv')
+original_data <- read_csv('Data/Input_Data/daily_tile_flow.csv')
 
 # assign reps numbers (arbitrary)
 reps <- 
-  df %>%
+  original_data %>%
   distinct(siteid, plotid, dwm) %>%
   group_by(siteid, dwm) %>%
   mutate(rep = 1:n()) %>%
@@ -21,7 +22,7 @@ reps <-
 
 # add replication numbers
 tile_flow_reps <-
-  df %>%
+  original_data %>%
   # assign rep numbers
   left_join(reps, by = c("siteid", "plotid", "dwm")) %>%
   select(-year, -plotid, -precip_on_site) %>%
@@ -45,6 +46,7 @@ rep_model_2 <- function(df) {
 }
 
 # predict missing values by fiting models
+# Note: here we used dup-reg to fill handful of little gaps in order to make the data complete for further analysis.
 tile_flow_fitted <- 
   tile_flow_reps %>%
   # add season as factor
@@ -104,7 +106,7 @@ tile_flow_reps %>%
         strip.text = element_text(size = 14),
         axis.title = element_text(size = 14),
         text = element_text(size = 12))
-ggsave('Figs/rep-regression/rep_regression_seasonal_models.png',
+ggsave('Figs/data_preparation/rep_regression_seasonal_models.png',
        width = 16, height = 10)
 
 # DPAC predictions
@@ -126,17 +128,33 @@ tile_flow_fitted %>%
         axis.title = element_text(size = 14),
         strip.text = element_text(size = 14),
         text = element_text(size = 12))
-ggsave('Figs/rep-regression/DPAC_tile_flow_predictions_2016.png',
+ggsave('Figs/data_preparation/DPAC_tile_flow_predictions_2016.png',
        width = 16, height = 10)
 
 # SERF_IA has no predictions for FD plots
 
 
 
-# Save predicted data -----------------------------------------------------
+# Save the master data ----------------------------------------------------
 
-tile_flow_fitted %>%
-  # as an input for new Imputation Method
-  write_csv("Data/Input_Data/daily_tile_flow_with_dup_regression.csv")
+# filter data to include only years of interest for each site
+    # DPAC 2006 - 2016
+    # SERF_IA 2007 - 2017
+
+tile_flow_complete <-
+  tile_flow_fitted %>%
+  # add precipitation data
+  left_join(original_data, by = c('siteid', 'plotid', 'dwm', 'date', 'flow')) %>%
+  filter(!(year(date) == 2017 & siteid == 'DPAC')) %>%
+  # remove moths with no data in the begining of 2006 at DPAC (before study commenced)
+  filter(date > ymd(20060615)) %>%
+  select(siteid, plotid, year, date, flow_pred, precip_on_site, comments) %>%
+  rename(flow = flow_pred, rain = precip_on_site)
+
+# save the complete data
+tile_flow_complete %T>%
+  write_rds(path = 'Data/Input_Data/RDS/daily_tile_flow_complete.rds') %>%
+  write_csv("Data/Input_Data/daily_tile_flow_complete.csv")
+
 
 

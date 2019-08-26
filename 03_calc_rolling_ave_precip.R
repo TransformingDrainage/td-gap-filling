@@ -52,10 +52,11 @@ df %>%
 ggsave('Figs/models/precip_density_distribution.png',
        width = 10, height = 6)
 
+
+
 # Determine rainfall threshold --------------------------------------------
 
 rain_limit = 0.45  # NEED TO justify rainfall threshold
-flow_limit = 0.30  # NEED TO justify
 
 
 

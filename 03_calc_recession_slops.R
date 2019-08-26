@@ -1,0 +1,130 @@
+# This script compute recession slopes of tile flow data
+# Slopes are calculated for both amputed and imputed (in step/module 1) data
+
+source(file = '00_project_settings.R')
+
+
+
+# Read Data ---------------------------------------------------------------
+
+df <- read_rds('Data/Input_Data/RDS/DPAC_amp_MAR_pred_module1.rds') 
+
+
+
+# Calculate recession slopes ----------------------------------------------
+
+# Create functions to select peak and inflection points
+peak_inflection <- function(df) {
+  df %>%
+    mutate(
+      first =  ln_flow - lag(ln_flow),
+      second = first - lag(first),
+      point =  lead(ln_flow) - ln_flow,
+      point1 = ifelse(is.na(point), "Pos", ifelse(point < 0, "Neg", "Pos")),
+      point1a = ifelse(is.na(first), "Pos", ifelse(first < 0, "Neg", "Pos")),
+      point2 = ifelse(is.na(second), "Pos", ifelse(second < 0, "Neg", "Pos"))
+    ) %>%
+    mutate(
+      group1 = rep(seq_along(rle(point1)$length), rle(point1)$length),
+      group1a = rep(seq_along(rle(point1a)$length), rle(point1a)$length),
+      group2 = rep(seq_along(rle(point2)$length), rle(point2)$length)
+    ) %>%
+    # group1 = from START to END-1day or ressesion
+    group_by(group1) %>%
+    mutate(POINT = ifelse(point1 == "Neg" &
+                            row_number() == 1, "peak", NA)) %>%
+    group_by(group2) %>%
+    mutate(POINT = ifelse(point2 == "Neg" &
+                            row_number() == n(), "inf", POINT)) %>%
+    ungroup() %>%
+    select(-point1,-point1a,-point2) %>%
+    mutate(group = ifelse(POINT == "peak", group1, group1a)) %>%
+    select(-group1,-group1a,-group2) %>%
+    filter(!is.na(POINT)) %>%  
+    # remove single peaks|ubflections and double inflections
+    group_by(group) %>%
+    mutate(n = n(),
+           count = 1:n()) %>%
+    ungroup() %>%
+    filter(n != 1,
+           count < 3) %>%
+    select(date, season, flow, ln_flow, group, POINT) %>%
+    # calculate duration of PEAK-TO-INFLECTION period and slope
+    mutate(days_bw_pni = lead(date) - date,
+           days = as.numeric(days_bw_pni),
+           change = (lead(ln_flow) - ln_flow),
+           slope = change/days)
+}
+
+# Calculate recession slopes
+recession_slopes <-
+  df %>%
+  unnest() %>%
+  gather(flow_type, flow, starts_with('flow')) %>%
+  arrange(simulation, prop, plotid, flow_type, date) %>%
+  group_by(simulation, prop, plotid, flow_type) %>%
+  nest() %>%
+  # log-transform flow data 
+  mutate(
+    data = map(data,
+               ~ .x %>%
+                 # ADD 2 EXTRA READINGS TO AVOID PROBLEMS IN PEAK/INFLECTION SELECTION
+                 add_row(flow = c(0, 0), .before = TRUE) %>%
+                 # make sure to handle log(0)
+                 mutate(ln_flow = ifelse(flow == 0, NA, log(flow)))
+    )
+  ) %>%
+  # find PEAK and INFLECTION points
+  mutate(data = map(data, peak_inflection))
+
+
+# save recession slopes so YOU DO NOT HAVE TO CALCULATE THEM AGAIN
+recession_slopes %>%
+  arrange(plotid, as.integer(simulation)) %>%
+  write_rds('Data/Input_Data/RDS/DPAC_amp_MAR_recession_slopes.rds')
+
+
+# Calculate ave recession slope
+recession_slopes %>%
+  unnest(data) %>%
+  # select "peak" POINTs, because they correspond to recession (falling) limb 
+  filter(POINT == 'peak') %>%
+  filter(!is.infinite(slope)) %>%
+  # save intermediate data for plotting in Global Environment
+  {. ->> recession_slopes_to_plot} %>%
+  # calculate average number of days between peak and first point of inflection
+  # and the slope of recession limb 
+  group_by(simulation, prop, flow_type, plotid, season) %>%
+  summarise(ave_days = mean(days),
+            # calculate trimmed, geometric and harmonic means since the distributions of slopes are right-skewed 
+            ave_slope = mean(slope),
+            ave_slope_trim = mean(slope, trim = 0.1),  # less conservative
+            ave_slope_geom = -exp(mean(log(-slope))),  # more conservative
+            ave_slope_harm = 1/(mean(1/slope))         # most conservative
+  ) %>%
+  ungroup() %>%
+  write_csv('Data/Input_Data/DPAC_amp_MAR_ave_recession_slopes.csv')
+
+
+
+# Plot recession slopes
+
+recession_slopes_to_plot %>%
+  filter(flow_type == 'flow_pred') %>%
+  ggplot(aes(flow, slope, col = days)) +
+  geom_point() +
+  facet_grid(~ plotid) +
+  theme_light()
+ggsave('Figs/models/recession_slopes_by_flow.png',
+       width = 12, height = 8)
+
+recession_slopes_to_plot %>%
+  filter(flow_type == 'flow_pred') %>%
+  ggplot(aes(season, slope)) +
+  geom_boxplot() +
+  scale_y_reverse() +
+  facet_grid(plotid ~ .) +
+  theme_light() +
+  coord_flip()
+ggsave('Figs/models/recession_slopes_distribution.png',
+       width = 12, height = 8)

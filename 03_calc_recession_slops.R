@@ -128,3 +128,34 @@ recession_slopes_to_plot %>%
   coord_flip()
 ggsave('Figs/models/recession_slopes_distribution.png',
        width = 12, height = 8)
+
+
+recession_slopes_to_plot %>%
+  group_by(simulation, prop, flow_type, plotid, season) %>%
+  summarise(ave_days = mean(days),
+            ave_slope = mean(slope),
+            ave_slope_trim = mean(slope, trim = 0.1),  # less conservative
+            ave_slope_geom = -exp(mean(log(-slope))),  # more conservative
+            ave_slope_harm = 1/(mean(1/slope))         # most conservative
+            ) %>% 
+  ungroup() %>%
+  gather(slope_type, slope, contains('_slope')) %>% 
+  mutate(prop = as.factor(prop),
+         slope_type = factor(slope_type, 
+                             levels = c('ave_slope', 'ave_slope_trim', 'ave_slope_geom', 'ave_slope_harm'),
+                             labels = c('Arithmetic Mean', 'Trimmed Mean, 10%', 'Geometric Mean', 'Harmonic Mean'))) %>%
+  filter(flow_type == "flow_pred") %>%
+  ggplot(aes(x=prop, y=slope)) + 
+  geom_boxplot() + 
+  scale_y_reverse() +
+  facet_grid(season ~ slope_type) + 
+  labs(title = 'Distribution of Mean Recession Slopes',
+       subtitle = 'Based on Simulated DPAC Data',
+       x = 'Proportion of Missing Data',
+       y = 'Average Recession Slope') +
+  theme_light() +
+  theme(plot.title = element_text(hjust = 0.5, size = 18, face = 'bold'),
+        plot.subtitle = element_text(hjust = 0.5, size = 14),
+        strip.text = element_text(size = 14))
+ggsave('Figs/models/ave_recession_slopes_distribution.png',
+       width = 12, height = 8)

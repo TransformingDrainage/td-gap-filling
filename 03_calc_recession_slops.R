@@ -114,18 +114,19 @@ recession_slopes_to_plot %>%
   ggplot(aes(flow, slope, col = days)) +
   geom_point() +
   facet_grid(~ plotid) +
-  theme_light()
+  theme_light() +
+  theme(text = element_text(size = 18))
 ggsave('Figs/models/recession_slopes_by_flow.png',
        width = 12, height = 8)
 
 recession_slopes_to_plot %>%
   filter(flow_type == 'flow_pred') %>%
-  ggplot(aes(season, slope)) +
+  ggplot(aes(season, slope, col = season)) +
   geom_boxplot() +
   scale_y_reverse() +
-  facet_grid(plotid ~ .) +
+  facet_grid(. ~ plotid) +
   theme_light() +
-  coord_flip()
+  theme(text = element_text(size = 18))
 ggsave('Figs/models/recession_slopes_distribution.png',
        width = 12, height = 8)
 

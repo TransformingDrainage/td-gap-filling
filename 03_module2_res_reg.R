@@ -1,3 +1,4 @@
+# Module 2 - Imputation
 # This script imputes missing tile flow data based on our NEW METHOD
 
 source(file = '00_project_settings.R')
@@ -134,6 +135,39 @@ df_model %>%
 
 
 
+
+
+# Plot Predictions --------------------------------------------------------
+
+df_plot <- read_rds('Data/Input_Data/RDS/DPAC_amp_MAR_imputed_data_Y11.rds') 
+
+# Predictions
+df_plot %>%
+  filter(simulation %in% c(11, 555, 999)) %>%
+  filter(flow_type == 'flow_pred') %>%    # select data that prdicted by both modules
+  filter(model_name == 'reg_model_3_day_avg') %>%
+  unnest() %>%
+  filter(year(date) == 2016 & month(date) < 7) %>%
+  ggplot(aes(x = date, group = plotid)) +
+  geom_point(aes(y = flow_pred), size = 1, alpha = 0.75) + 
+  geom_point(data = . %>% filter(!is.na(comments)), 
+             aes(y = flow_pred), colour = 'orange2', size = 2) +
+  geom_point(data = . %>% filter(comments == 'predicted via recession model'), 
+             aes(y = flow_pred), colour = 'slateblue2', size = 2) +
+  geom_line(aes(y = flow_pred), alpha = 0.25) +
+  scale_x_date(date_labels = '%b') +
+  labs(x = NULL, y = 'Tile Flow, mm',
+       subtitle = 'January-June 2016',
+       title = 'Daily Drainage Predictions') +
+  facet_grid(prop ~ plotid) +
+  theme_light() +
+  theme(plot.title = element_text(hjust = 0.5, size = 24, face = 'bold'),
+        plot.subtitle = element_text(hjust = 0.5, size = 20),
+        axis.title = element_text(size = 18),
+        strip.text = element_text(size = 18),
+        text = element_text(size = 16))
+ggsave('Figs/predictions/all_predictions_2016_Jan_Jun.png',
+       width = 16, height = 10)
 
 
 

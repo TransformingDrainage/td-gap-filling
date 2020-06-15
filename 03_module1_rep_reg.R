@@ -137,6 +137,29 @@ ggsave('Figs/predictions/rep_reg_predictions_2016.png',
        width = 16, height = 10)
 
 
+# Predictions
+df_pred_module1[c(11, 555, 999), ] %>%
+  unnest() %>%
+  filter(year(date) == 2016 & month(date) < 7) %>%
+  ggplot(aes(x = date, group = plotid)) +
+  geom_point(data = . %>% filter(!is.na(comments)), 
+             aes(y = flow_pred), colour = 'orange2', size = 2) +
+  geom_point(aes(y = flow_amp), size = 1, alpha = 0.75) + 
+  geom_line(aes(y = flow_amp), alpha = 0.25) +
+  scale_x_date(date_labels = '%b') +
+  labs(x = NULL, y = 'Tile Flow, mm',
+       subtitle = 'January-June 2016',
+       title = 'Daily Drainage Predictions based on Replicate Pregression Model') +
+  facet_grid(prop ~ plotid) +
+  theme_light() +
+  theme(plot.title = element_text(hjust = 0.5, size = 24, face = 'bold'),
+        plot.subtitle = element_text(hjust = 0.5, size = 20),
+        axis.title = element_text(size = 18),
+        strip.text = element_text(size = 18),
+        text = element_text(size = 16))
+ggsave('Figs/predictions/rep_reg_predictions_2016_Jan_Jun.png',
+       width = 16, height = 10)
+
 
 # Save rep-reg predicted data ---------------------------------------------
 df_pred_module1 %>%

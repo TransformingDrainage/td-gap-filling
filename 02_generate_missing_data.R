@@ -39,8 +39,8 @@ my_pattern <- tibble(year = 1, date = 1, rain = 1, NE = c(1,0,0), SW = c(0,1,0))
 f = 0.9  # frequency of pattern number 3 (both missing)
 my_freq <- c(1- f, 1- f, f)
 
-# because of the overlapping missingness pattern 
-# we need to adjust proportions of missing data and frequencies
+# because of the missingness patterns used (a and b patterns cause splitting)
+# we need to adjust proportions and frequencies of missing data, 
 # so it is exactly as we designed
 my_freq_adj <- my_freq/sum(my_freq)
 my_prop_adj <- my_prop*sum(my_freq)
@@ -82,7 +82,7 @@ for (i in seq_along(my_prop_adj)) {
       temp_amp[[k-2005]]  <- results$amp
     }
     DPAC_amp[[list_num]] <- bind_rows(temp_amp) %>% 
-      mutate(date = as.Date(date), prop = my_prop[i])
+      mutate(date = as.Date(date, origin), prop = my_prop[i])
   }
 }
 

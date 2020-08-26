@@ -12,6 +12,7 @@ df <- read_csv('Data/Input_Data/daily_tile_flow_complete.csv')
 # DPAC is chosen for analysis as it is the most complete dataset
 df %>% 
   filter(siteid == "DPAC") %>%
+  filter(year > 2006) %>%
   filter(!is.na(flow)) %>%
   select(-comments, -siteid) %>%
   spread(plotid, flow) -> DPAC
@@ -69,7 +70,7 @@ for (i in seq_along(my_prop_adj)) {
   for (j in 1:200) {
     list_num <- 200*(i-1) + j
     # apply percent to remove to each year separately
-    for (k in 2006:2016) {
+    for (k in 2007:2016) {
       DPAC %>% 
         filter(year == k) %>%
         ampute(patterns = my_pattern,
@@ -79,7 +80,7 @@ for (i in seq_along(my_prop_adj)) {
                mech = 'MAR',   
                cont = FALSE,
                odds = my_odds) -> results
-      temp_amp[[k-2005]]  <- results$amp
+      temp_amp[[k-2006]]  <- results$amp
     }
     DPAC_amp[[list_num]] <- bind_rows(temp_amp) %>% 
       mutate(date = as.Date(date, origin), prop = my_prop[i])

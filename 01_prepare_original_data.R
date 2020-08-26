@@ -45,6 +45,8 @@ data_to_analyze <-
   filter(!(siteid == 'DPAC' & year > 2016)) %>%
   filter(!(siteid == 'SERF' & year < 2006)) %>%
   filter(!(siteid == 'SERF' & year > 2017)) %>%
+  # remove any data from S2 in 2009-2010
+  mutate(flow = ifelse(plotid == 'S2' & year %in% 2009:2010, NA_real_, flow)) %>%
   arrange(siteid, plotid, date)
 
 

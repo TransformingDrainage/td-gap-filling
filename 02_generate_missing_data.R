@@ -5,21 +5,14 @@
 source(file = '00_project_settings.R')
 
 
+
 # Read Data ---------------------------------------------------------------
 
-df <- read_csv('Data/Input_Data/daily_tile_flow_complete.csv')
-
-# DPAC is chosen for analysis as it is the most complete dataset
-df %>% 
-  filter(siteid == "DPAC") %>%
-  filter(year > 2006) %>%
-  filter(!is.na(flow)) %>%
-  select(-comments, -siteid) %>%
-  spread(plotid, flow) -> DPAC
+df <- read_rds('Data/Input_Data/daily_tile_flow_complete.rds')
 
 
 
-# MAR Amputation ----------------------------------------------------------
+# MAR Amputation Settings -------------------------------------------------
 # Do the amputation for each site individually, and format as below
 
 # .........................................
@@ -54,13 +47,21 @@ my_weights <- tibble(year = 1, date = 1, rain = 1, NE = c(1,0,0), SW = c(0,1,0))
 my_odds <- matrix(1, nrow = 3, ncol = 4)
 
 
+
+# Ampute DPAC Data ----------------------------------------------------
+# DPAC has the most complete dataset
+df %>% 
+  filter(siteid == "DPAC") %>%
+  filter(!is.na(flow)) %>%
+  select(-siteid) %>%
+  spread(plotid, flow) -> DPAC
+
 # ........................................
 # Create dummy variables to hold the data
 # ........................................
 
 DPAC_amp <- vector('list', length = length(my_prop_adj) * 200)
-temp_amp <- vector('list', length = 11)
-
+temp_amp <- vector('list', length = 10)   # 10 corresponds to number of total years
 
 # ..............................
 # Generate missing data at DPAC
@@ -92,10 +93,60 @@ DPAC_amp[[1000]]
 
 
 
-# Save amputated DPAC data ------------------------------------------------
-write_rds(DPAC_amp, path = 'Data/Input_Data/RDS/DPAC_amp_MAR.rds')
-DPAC_amp %>% bind_rows() %>% write_csv('Data/Input_Data/DPAC_amp_MAR.csv')
+# Ampute SERF Data ----------------------------------------------------
+# SERF has two missing years at S2
+df %>% 
+  filter(siteid == "SERF") %>%
+  filter(!is.na(flow)) %>%
+  select(-siteid) %>%
+  spread(plotid, flow) %>%
+  # temporary imput missing value at S2 (for amputation to work)
+  mutate(S2 = ifelse(is.na(S2), S5, S2)) -> SERF
+
+# ........................................
+# Create dummy variables to hold the data
+# ........................................
+
+SERF_amp <- vector('list', length = length(my_prop_adj) * 200)
+temp_amp <- vector('list', length = 11)
+
+# ..............................
+# Generate missing data at SERF
+# ..............................
+
+for (i in seq_along(my_prop_adj)) {
+  for (j in 1:200) {
+    list_num <- 200*(i-1) + j
+    # apply percent to remove to each year separately
+    for (k in 2007:2017) {
+      SERF %>% 
+        filter(year == k) %>%
+        ampute(patterns = my_pattern,
+               freq = my_freq_adj,
+               prop = my_prop_adj[i], 
+               # Missing At Random (MAR) mechanism is used for amputation
+               mech = 'MAR',   
+               cont = FALSE,
+               odds = my_odds) -> results
+      temp_amp[[k-2006]]  <- results$amp
+    }
+    SERF_amp[[list_num]] <- bind_rows(temp_amp) %>% 
+      mutate(date = as.Date(date, origin), prop = my_prop[i])
+  }
+}
+
+# remove all temporary imputations from S2
+SERF_amp_rm <- 
+  SERF_amp %>%
+  map(.f = ~ .x %>% mutate(S2 = ifelse(year %in% 2009:2010, NA_real_, S2))) 
+
+# check the last output
+SERF_amp[[1000]] %>% filter(year == 2009)
+SERF_amp_rm[[1000]] %>% filter(year == 2009)
 
 
+
+# Save amputated SERF data ------------------------------------------------
+write_rds(SERF_amp_rm, path = 'Data/Inter_Data/SERF_amp_MAR.rds', compress = 'xz')
 
 

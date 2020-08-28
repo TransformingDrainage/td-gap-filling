@@ -124,5 +124,5 @@ precip_rolling_ave <-
   select(siteid, date, everything())
 
 
-# Save precip for use in regression model (Module 2)
-write_rds(precip_rolling_ave, 'Data/Inter_Data/rolling_ave_precip.rds', compress = 'xz')
+# Save precip for use in regression model (Phase 3)
+write_rds(precip_rolling_ave, 'Data/Inter_Data/Phase3_Imputation/rolling_ave_precip.rds', compress = 'xz')

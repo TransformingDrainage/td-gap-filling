@@ -34,7 +34,8 @@ years <-
 for (i in prop) {
   dpac %>%
     keep(~ median(.$prop) == paste0('0.', i)) %>%
-    write_rds(paste0('Data/Inter_Data/DPAC/DPAC_Y', 'A_', i, '.rds'), compress = 'xz')
+    bind_rows(.id = 'simulation') %>%
+    write_rds(paste0('Data/Inter_Data/Amputated_Subsets/DPAC/DPAC_Y', 'A_', i, '.rds'), compress = 'xz')
 }
 
 # subset years corresponding to different senarios within each split (proportion data)
@@ -53,7 +54,7 @@ for (i in prop) {
                               ~ .x %>% filter(year %in% .y) %>% arrange(date))) %>%
       select(simulation, flow_data) %>%
       unnest() %>%
-      write_rds(paste0('Data/Inter_Data/DPAC/DPAC_', j, '_', i, '.rds'), compress = 'xz')
+      write_rds(paste0('Data/Inter_Data/Amputated_Subsets/DPAC/DPAC_', j, '_', i, '.rds'), compress = 'xz')
   }
 }
 

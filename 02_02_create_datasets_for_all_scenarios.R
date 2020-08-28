@@ -7,8 +7,8 @@ source(file = '00_project_settings.R')
 
 # Read Data ---------------------------------------------------------------
 
-dpac <- read_rds('Data/Inter_Data/DPAC_amp_MAR.rds')
-serf <- read_rds('Data/Inter_Data/SERF_amp_MAR.rds')
+dpac <- read_rds('Data/Inter_Data/Amputated_Subsets/DPAC_amp_MAR.rds')
+serf <- read_rds('Data/Inter_Data/Amputated_Subsets/SERF_amp_MAR.rds')
 
 
 

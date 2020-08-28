@@ -92,7 +92,7 @@ for (i in seq_along(my_prop_adj)) {
 DPAC_amp[[1000]]
 
 # Save amputated DPAC data
-write_rds(DPAC_amp, path = 'Data/Inter_Data/DPAC_amp_MAR.rds', compress = 'xz')
+write_rds(DPAC_amp, path = 'Data/Inter_Data/Amputated_Subsets/DPAC_amp_MAR.rds', compress = 'xz')
 
 
 
@@ -149,6 +149,6 @@ SERF_amp[[1000]] %>% filter(year == 2009)
 SERF_amp_rm[[1000]] %>% filter(year == 2009)
 
 # Save amputated SERF data
-write_rds(SERF_amp_rm, path = 'Data/Inter_Data/SERF_amp_MAR.rds', compress = 'xz')
+write_rds(SERF_amp_rm, path = 'Data/Inter_Data/Amputated_Subsets/SERF_amp_MAR.rds', compress = 'xz')
 
 

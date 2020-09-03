@@ -1,4 +1,4 @@
-# Module 2 - Imputation
+# Phase 3 - Imputation
 # This script imputes missing tile flow data based on our NEW METHOD
 
 source(file = '00_project_settings.R')
@@ -6,91 +6,152 @@ library(zoo)
 
 
 # Read Data ---------------------------------------------------------------
-
-df_flow <- read_rds('Data/Input_Data/RDS/DPAC_amp_MAR_pred_module1.rds')
-df_rain <- read_csv('Data/Input_Data/DPAC_rolling_ave_precip.csv')
-df_slopes <- read_rds('Data/Input_Data/RDS/DPAC_amp_MAR_recession_slopes.rds')
-
-
-# Combine data for analysis
-# all data (11 years)
-df_11Y <- 
-  df_flow %>%
-  unnest() %>%
-  gather(flow_type, flow, starts_with('flow_')) %>%
-  # remove comments regarding prediction from Module1 for non-imputed data
-  mutate(comments = ifelse(flow_type == 'flow_amp', NA, comments)) %>%
-  group_by(simulation, prop, plotid, flow_type) %>%
-  nest(.key = flow_data) %>%
-  full_join(df_slopes, by = c('simulation', 'prop', 'plotid', 'flow_type')) %>%
-  rename(slope_data = data) %>%
-  arrange(as.double(simulation), prop, plotid, flow_type)
-
-
-# Create table of years to be picked for 2, 4, and 6 year simulations
-years <-
-  cbind(simulation = 1:1000,
-        tibble(Y6 = list(2007:2012, 2008:2013, 2009:2014, 2010:2015, 2011:2016),
-               Y4 = list(2007:2010, 2009:2012, 2010:2013, 2012:2015, 2013:2016),
-               Y2 = list(2007:2008, 2009:2010, 2011:2012, 2012:2013, 2015:2016))
-        ) %>%
-  as.tibble() %>%
-  mutate(simulation = as.character(simulation))
-
-# 6 consequtive years (2007-2012, 2008-2013, 2009-2014, 2010-2015, 2011-2016)
-df_6Y <-
-  df_11Y %>%
-  left_join(years, by = 'simulation') %>%
-  mutate(flow_data = map2(flow_data, 
-                          Y6, 
-                          ~ .x %>% filter(year(date) %in% .y) %>% arrange(date)), 
-         slope_data = map2(slope_data, 
-                           Y6, 
-                           ~ .x %>% filter(year(date) %in% .y) %>% arrange(date)))
-
-# 4 consequtive years (2007-2010, 2009-2012, 2010-2013, 2012-2015, 2013-2016)
-df_4Y <-
-  df_11Y %>%
-  left_join(years, by = 'simulation') %>%
-  mutate(flow_data = map2(flow_data, 
-                          Y4, 
-                          ~ .x %>% filter(year(date) %in% .y) %>% arrange(date)), 
-         slope_data = map2(slope_data, 
-                           Y4, 
-                           ~ .x %>% filter(year(date) %in% .y) %>% arrange(date)))
-# 2 consequtive years (2007-2008, 2009-2010, 2011-2012, 2012-2013, 2015-2016)
-df_2Y <-
-  df_11Y %>%
-  left_join(years, by = 'simulation') %>%
-  mutate(flow_data = map2(flow_data, 
-                          Y2, 
-                          ~ .x %>% filter(year(date) %in% .y) %>% arrange(date)), 
-         slope_data = map2(slope_data, 
-                           Y2, 
-                           ~ .x %>% filter(year(date) %in% .y) %>% arrange(date)))
+df_flow <- read_rds('Data/Inter_Data/Phase2_Imputation/DPAC/DPAC_Y2_05_pred_phase2.rds')
+df_slopes <- read_rds('Data/Inter_Data/Phase3_Imputation/DPAC/DPAC_ave_recession_slopes.rds')
+df_rain <- read_rds('Data/Inter_Data/Phase3_Imputation/rolling_ave_precip.rds')
 
 
 
 # Develop Regression model ------------------------------------------------
 
-# function to fit linear model using 3-day-ave and 3-day-weighted-ave precipitation
-reg_model_3_day_avg <- function(df) {
-  lm(flow ~ rain_3 - 1, data = df)
-}
-reg_model_3_day_weighted <- function(df) {
-  lm(flow ~ rain_3_weighted - 1, data = df)
+# function to fit linear regression model using API
+reg_model <- function(df) {
+  lm(flow ~ api - 1, data = df)
 }
 
+# function for fitting model
+model_fit <- function(df) {
+  df %>%
+    unnest(data) %>%
+    gather(flow_type, flow, starts_with('flow_')) %>%
+    # remove comments regarding prediction from Phase 2 for non-imputed data
+    mutate(comments = ifelse(flow_type == 'flow_amp', NA, comments)) %>%
+    group_by(simulation, prop, flow_type, plotid) %>%
+    # calculate limiting tile flow as mean daily summer flow 
+    mutate(min_flow = mean(flow[season == "Summer"], na.rm = TRUE)#,
+           # # .............................................................. ASSUMPTION 
+           # # THIS IS PART OF ACTUAL GAP FILLING USED IN TD PROJECT!
+           # # correct limitting flow so it is not > 0.3 mm/day
+           # min_flow = ifelse(min_flow > flow_limit, flow_limit, min_flow)
+    ) %>%
+    # add precipitation data
+    left_join(RAIN, by = c('date')) %>%
+    group_by(simulation, prop, flow_type, plotid, season) %>%
+    nest() %>%
+    # filter data to be used for regression 
+    mutate(data_filtered = map(.x = data,
+                               .f = ~ .x %>%
+                                 # remove days when there was no rain OR tile flow was below minimum limit
+                                 filter(flow > min_flow, api > 0)),
+           # this give the number of point available to fit the model
+           points = map_dbl(data_filtered, nrow)) %>%
+    # fit the model
+    mutate(model = map_if(.x = data_filtered, .p = points > 3, .f = reg_model)) %>% 
+    select(-data_filtered) %>%
+    # combine recession slope with flow data
+    left_join(SLOPES, by = c('simulation', 'prop', 'flow_type', 'plotid', 'season')) 
+}
+
+# function for imputting missing flow data
+model_predict <- function(df) {
+  df %>%
+    filter(points > 3, !is.na(slope)) %>%
+    # add predictions of pick flows using actual data
+    mutate(isnull = map_lgl(model, is.null),
+           # predict pick flow only when there is a model available 
+           data = ifelse(isnull == 1, 
+                         data, 
+                         map2(.x = model,
+                              .y = data,
+                              .f = ~ augment(.x, newdata = .y)))) %>%
+    select(simulation:data, slope) %>%
+    unnest(data) %>% 
+    arrange(simulation, prop, flow_type, plotid, date) %>%
+    # resolve the problem of skipping first data points when rain < rain_limit
+    # for example after missing dates of precip there is a first record of 0 rain, 
+    # we need to keep prediction of corresponding tile flow of 0, so we can predict down the timeline
+    group_by(simulation, prop, flow_type, plotid) %>%
+    # find the first non-NA value for precip within each site-plot
+    mutate(is_rain = is.na(api),
+           group = rep(seq_along(rle(is_rain)$length), rle(is_rain)$length)) %>%
+    group_by(simulation, prop, flow_type, plotid, group) %>%
+    # select only those first non-NA values when there was a measurement
+    mutate(is_first = ifelse(row_number() == 1 & is_rain == FALSE, "Y", "N")) %>%
+    ungroup() %>%
+    # choose predictions for days when it was raining and no flow measured
+    mutate(pred = ifelse(.fitted < 0, 0, .fitted),  # eliminate predicted negative flows
+           flow_pred = ifelse(is.na(flow) & api > rain_limit, pred, flow),
+           # add predictions for the first non-NA days when they are missing (due to rain < rain_limit)
+           flow_pred = ifelse(is.na(flow_pred) & is_first == "Y", pred, flow_pred)) %>%
+    select(simulation:api, flow_pred, slope) %>%
+    # THIS IS WHERE YOU CAN ADD PREVIOUS DAYS FRECTION TO THE PREDICTED FLOWS
+    
+    # predict flow of falling limb
+    group_by(simulation, prop, flow_type, plotid) %>%
+    mutate(LOGIC = ifelse(is.na(flow_pred), "Y", "N"),
+           group = rep(seq_along(rle(LOGIC)$length), rle(LOGIC)$length)) %>%
+    group_by(simulation, prop, flow_type, plotid, group) %>%
+    mutate(count = 1:n(),
+           count = ifelse(LOGIC == "N", 0, count)) %>%
+    group_by(simulation, prop, flow_type, plotid) %>%
+    # limit predicted flow to measured max tile flow
+    mutate(flow_max = max(flow, na.rm = T),
+           flow_pred = ifelse(flow_pred > flow_max, flow_max, flow_pred),
+           flow_max = NULL) %>% 
+    select(-group, -LOGIC) %>%
+    # apply recession equation (Qi = Qi-1 * e^k, where k is seasonal recession slope)
+    mutate(flow_pred2 = na.locf(flow_pred, na.rm = FALSE),
+           # use arithmetic mean slope
+           flow_pred2_mean = round(flow_pred2 * exp(slope * count), 6),
+           flow_pred = ifelse(is.na(flow_pred), flow_pred2_mean, flow_pred)) %>%
+    select(-starts_with("flow_pred2"), -count) %>%
+    # remove predicitoins of flow in days when there was no rainfall data (see CRAWF)
+    mutate(flow_pred = ifelse(is.na(flow) & is.na(api), NA, flow_pred)) %>%
+    select(-slope, -api, -min_flow) %>%
+    mutate(comments = ifelse(is.na(flow) & !is.na(flow_pred), 'predicted via recession model', comments)) %>%
+    select(simulation, prop, flow_type, plotid, season, date, flow_pred, comments) %>%
+    group_by(simulation, prop, flow_type, plotid) %>%
+    nest()
+}
 
 
-# Determine flow threshold ------------------------------------------------
-
-# flow_limit = 0.30  # NEED TO justify
-# rain_limit = 0.45  # NEED TO justify
-rain_limit = 0  # Currently used value
+# set limiting rain
+rain_limit = 0 
 
 
 # Select input data and save imputed data ---------------------------------
+dpac_files <- list.files('Data/Inter_Data/Phase2_Imputation/DPAC/', full.names = TRUE)
+
+for (i in dpac_files) {
+  SCENARIO <- str_extract(i, 'Y._.{2}')
+  print(SCENARIO)
+  # Filter slopes corresponding to the scenario
+  SLOPES <- df_slopes %>% 
+    filter(id == SCENARIO) %>%
+    select(simulation:season, slope = ave_slope)
+  for (j in 2:3) {
+    RAIN <- df_rain %>%
+      filter(siteid == 'DPAC') %>%
+      select(date, api = paste0('rain_', j))
+    # Fit model and predict missing values
+    PREDICTIONS <- 
+      read_rds(i) %>% 
+      model_fit() %>%
+      model_predict()
+    # save predictions
+    PREDICTIONS %>%
+      mutate(scenario = SCENARIO,
+             api = paste(j, 'day rolling ave')) %>%
+      write_rds(paste0('Data/Inter_Data/Phase3_Imputation/DPAC/predictions/ORIGINAL/DPAC_', 
+                       SCENARIO, '_pred_phase3_rain', j, '.rds'),
+                compress = 'xz')
+  }
+}
+
+
+
+
+# THE OLD SCRIPT ----------------------------------------------------------
 
 # 11 YEARS
 df <- df_11Y
@@ -104,13 +165,6 @@ df <- df_6Y
 source('03_impute_missing_data.R')
 write_rds(x = df_model, path = 'Data/Input_Data/RDS/DPAC_amp_MAR_regression_model_Y6.rds')
 write_rds(x = df_pred, path = 'Data/Input_Data/RDS/DPAC_amp_MAR_imputed_data_Y6.rds')
-
-
-# 4 YEARS
-df <- df_4Y
-source('03_impute_missing_data.R')
-write_rds(x = df_model, path = 'Data/Input_Data/RDS/DPAC_amp_MAR_regression_model_Y4.rds')
-write_rds(x = df_pred, path = 'Data/Input_Data/RDS/DPAC_amp_MAR_imputed_data_Y4.rds')
 
 
 # 2 YEARS
@@ -140,12 +194,13 @@ df_model %>%
 # Plot Predictions --------------------------------------------------------
 
 df_plot <- read_rds('Data/Input_Data/RDS/DPAC_amp_MAR_imputed_data_Y11.rds') 
+df_plot <- read_rds('Data/Inter_Data/Phase3_Imputation/DPAC/predictions/ORIGINAL/DPAC_Y4_25_pred_phase3_rain3.rds') 
 
 # Predictions
 df_plot %>%
-  filter(simulation %in% c(11, 555, 999)) %>%
+  filter(simulation %in% c(11, 55, 199)) %>%
   filter(flow_type == 'flow_pred') %>%    # select data that prdicted by both modules
-  filter(model_name == 'reg_model_3_day_avg') %>%
+  # filter(model_name == 'reg_model_3_day_avg') %>%
   unnest() %>%
   filter(year(date) == 2016 & month(date) < 7) %>%
   ggplot(aes(x = date, group = plotid)) +

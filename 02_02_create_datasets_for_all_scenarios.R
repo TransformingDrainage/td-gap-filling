@@ -38,7 +38,7 @@ for (i in prop) {
     write_rds(paste0('Data/Inter_Data/Amputated_Subsets/DPAC/DPAC_Y', 'A_', i, '.rds'), compress = 'xz')
 }
 
-# subset years corresponding to different senarios within each split (proportion data)
+# subset years corresponding to different scenarios within each split (proportion data)
 for (i in prop) {
   dpac %>%
     keep(~ median(.$prop) == paste0('0.', i)) %>% 

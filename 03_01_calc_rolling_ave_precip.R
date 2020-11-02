@@ -7,8 +7,11 @@ library(zoo)
 
 # Read Data ---------------------------------------------------------------
 
-precip <- read_rds('Data/Input_Data/daily_tile_flow_complete.rds') %>%
-  distinct(siteid, date, rain)
+precip <- 
+  read_rds('Data/Input_Data/daily_tile_flow_complete.rds') %>%
+  distinct(siteid, date, rain, snowing) %>%
+  # substitute rain with 0 for snowing days
+  mutate(rain = ifelse(snowing == 1 & !is.na(snowing), 0, rain)) 
 
 
 # Rainfall to precipitation relationship
@@ -19,6 +22,12 @@ read_rds('Data/Input_Data/daily_tile_flow_complete.rds') %>%
   ggplot(aes(rain, flow, col = season)) +
   geom_point(na.rm = TRUE) +
   geom_smooth(method = 'lm', se = F, col = 'black') +
+  ggpmisc::stat_poly_eq(formula = y ~ x,
+                        eq.with.lhs = "italic(hat(y))~`=`~",
+                        aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), 
+                        label.y = 0.95, label.x = .95, 
+                        col = 'black', face = 'bold',
+                        parse = TRUE) +
   facet_grid(season ~ siteid) +
   theme_light() 
 
@@ -40,16 +49,16 @@ df %>%
   geom_vline(xintercept = peak) +
   geom_vline(xintercept = 0.5, linetype = 3) +
   geom_text(aes(x = median(rain), label = paste('Median = ', round(median(rain), 1))), 
-            y = 0.12, angle = 90, nudge_x = -0.25) +
+            y = 0.06, angle = 90, nudge_x = -0.25) +
   geom_text(aes(x = mean(rain), label = paste('Mean = ', round(mean(rain), 1))), 
-            y = 0.12, angle = 90, nudge_x = -0.25) +
+            y = 0.06, angle = 90, nudge_x = -0.25) +
   geom_text(label = paste('Peak = ', round(peak, 1)), 
-            x = peak - 0.25, y = 0.12, angle = 90) +
+            x = peak - 0.25, y = 0.06, angle = 90) +
   geom_text(label = paste('Limit Used = ', 0.5), 
-            x = 0.5 - 0.25, y = 0.12, angle = 90) +
+            x = 0.5 - 0.25, y = 0.06, angle = 90) +
   theme_light() +
   coord_cartesian(xlim = c(0, 15))
-ggsave('Figs/models/DPAC_precip_density_distribution.png',
+ggsave('Figs/phase3/DPAC_precip_density_distribution.png',
        width = 10, height = 6)
 
 
@@ -79,7 +88,7 @@ df %>%
             x = 0.5 - 0.25, y = 0.07, angle = 90) +
   theme_light() +
   coord_cartesian(xlim = c(0, 20), ylim = c(0, 0.08))
-ggsave('Figs/models/SERF_precip_density_distribution.png',
+ggsave('Figs/phase3/SERF_precip_density_distribution.png',
        width = 10, height = 6)
 
 
@@ -115,7 +124,7 @@ precip_rolling_ave <-
                                       partial = FALSE, fill = NA),
          # handle days which are out of the rolling range = first two recoreds in this case
          rain_3_weighted = ifelse(is.na(rain_3_weighted), rain_3, rain_3_weighted),
-         # leave calculated moving avarage only for those days when it rained
+         # leave calculated moving average only for those days when it rained
          # OR rain was negligible (see the plot above)
          rain_2 = ifelse(rain > rain_limit, rain_2, 0),
          rain_3 = ifelse(rain > rain_limit, rain_3, 0),
@@ -124,5 +133,7 @@ precip_rolling_ave <-
   select(siteid, date, everything())
 
 
-# Save precip for use in regression model (Phase 3)
+# Save rainfall for use in regression model (Phase 3)
 write_rds(precip_rolling_ave, 'Data/Inter_Data/Phase3_Imputation/rolling_ave_precip.rds', compress = 'xz')
+
+

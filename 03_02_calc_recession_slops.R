@@ -126,7 +126,7 @@ recession_slopes_to_plot %>%
   facet_grid(~ plotid) +
   theme_light() +
   theme(text = element_text(size = 18))
-ggsave('Figs/models/recession_slopes_by_flow.png',
+ggsave('Figs/phase3/recession_slopes_by_flow.png',
        width = 12, height = 8)
 
 recession_slopes_to_plot %>%
@@ -137,7 +137,7 @@ recession_slopes_to_plot %>%
   facet_grid(. ~ plotid) +
   theme_light() +
   theme(text = element_text(size = 18))
-ggsave('Figs/models/recession_slopes_distribution.png',
+ggsave('Figs/phase3/recession_slopes_distribution.png',
        width = 12, height = 8)
 
 
@@ -168,5 +168,5 @@ recession_slopes_to_plot %>%
   theme(plot.title = element_text(hjust = 0.5, size = 18, face = 'bold'),
         plot.subtitle = element_text(hjust = 0.5, size = 14),
         strip.text = element_text(size = 14))
-ggsave('Figs/models/ave_recession_slopes_distribution.png',
+ggsave('Figs/phase3/ave_recession_slopes_distribution.png',
        width = 12, height = 8)

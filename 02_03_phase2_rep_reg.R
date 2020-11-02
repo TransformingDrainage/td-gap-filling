@@ -125,7 +125,7 @@ dpac_model_performance %>%
         strip.text = element_text(size = 14),
         axis.title = element_text(size = 14),
         text = element_text(size = 12))
-ggsave('Figs/models/rep_regression_model_rsquares.png',
+ggsave('Figs/phase2/rep_regression_model_rsquares.png',
        width = 16, height = 10)
 
 
@@ -169,7 +169,7 @@ dpac_subset_YA %>%
         strip.text = element_text(size = 14),
         axis.title = element_text(size = 14),
         text = element_text(size = 12))
-ggsave('Figs/models/rep_regression_seasonal_models_5_subsets_from_YA.png',
+ggsave('Figs/phase2/rep_regression_seasonal_models_5_subsets_from_YA.png',
        width = 16, height = 10)
 
 # Phase 2 predictions for 2016
@@ -192,7 +192,7 @@ dpac_subset_YA %>%
         axis.title = element_text(size = 14),
         strip.text = element_text(size = 14),
         text = element_text(size = 12))
-ggsave('Figs/predictions/Phase2_predictions_2016.png',
+ggsave('Figs/phase2/Phase2_predictions_2016.png',
        width = 16, height = 10)
 
 # Phase 2 predictions from Jan to Jun in 2016 
@@ -217,7 +217,7 @@ dpac_subset_YA %>%
         axis.title = element_text(size = 18),
         strip.text = element_text(size = 18),
         text = element_text(size = 16))
-ggsave('Figs/predictions/Phase2_predictions_2016_Jan_Jun.png',
+ggsave('Figs/phase2/Phase2_predictions_2016_Jan_Jun.png',
        width = 16, height = 10)
 
 

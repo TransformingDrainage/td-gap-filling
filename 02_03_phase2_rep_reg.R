@@ -217,7 +217,7 @@ dpac_subset_YA %>%
         axis.title = element_text(size = 18),
         strip.text = element_text(size = 18),
         text = element_text(size = 16))
-ggsave('Figs/predictions/rep_reg_predictions_2016_Jan_Jun.png',
+ggsave('Figs/predictions/Phase2_predictions_2016_Jan_Jun.png',
        width = 16, height = 10)
 
 

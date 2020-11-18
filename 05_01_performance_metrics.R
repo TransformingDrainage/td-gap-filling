@@ -53,17 +53,41 @@ perf_IoA <- function(df) {
     pull()
 }
 
+
+# Nash-Sutcliffe Efficiency 
+perf_NSE <- function(df) {
+  df %>%
+    mutate(term1 = (flow - flow_pred)^2,
+           O_ave = mean(flow),
+           term2 = (flow - O_ave)^2) %>%
+    summarise(NSE = 1 - sum(term1)/sum(term2)) %>%
+    pull()
+}
+
+# Percent Bias or Error 
+perf_PE <- function(df) {
+  df %>%
+    summarise(P_sum = sum(flow_pred),
+              O_sum = sum(flow)) %>%
+    mutate(PE = ((P_sum - O_sum)/O_sum * 100)) %>%
+    pull()
+}
+
 # calculate performance measures 
 calc_my_perf <- function(df) {
   df %>%
     #  use only those that does not have negative outcome
     mutate(O = map_dbl(data, perf_O), 
            AE = map_dbl(data, perf_AE),
+           PE = map_dbl(data, perf_PE),
            NAE = AE/O,
            MAE = map_dbl(data, perf_MAE),
            NMAE = MAE/O,
            RMSE = map_dbl(data, perf_RMSE),
            NRMSE = RMSE/O,
            ME = map_dbl(data, perf_ME),
-           IoA = map_dbl(data, perf_IoA))
+           IoA = map_dbl(data, perf_IoA),
+           NSE = map_dbl(data, perf_NSE))
 }
+
+

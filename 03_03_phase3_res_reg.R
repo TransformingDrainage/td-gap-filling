@@ -143,7 +143,7 @@ for (i in dpac_files) {
     PREDICTIONS %>%
       mutate(scenario = SCENARIO,
              api = paste(j, 'day rolling ave')) %>%
-      write_rds(paste0('Data/Inter_Data/Phase3_Imputation/DPAC/predictions/ORIGINAL/DPAC_', 
+      write_rds(paste0('Data/Inter_Data/Phase3_Imputation/DPAC/predictions/FINAL/DPAC_', 
                        SCENARIO, '_pred_phase3_rain', j, '.rds'),
                 compress = 'xz')
   }
@@ -155,11 +155,11 @@ for (i in dpac_files) {
 # Read 5 subsets of data from complete 10-year scenario
 df_plot <- 
   bind_rows(
-    read_rds('Data/Inter_Data/Phase3_Imputation/DPAC/predictions/ORIGINAL/DPAC_YA_05_pred_phase3_rain3.rds') %>%
+    read_rds('Data/Inter_Data/Phase3_Imputation/DPAC/predictions/FINAL/DPAC_YA_05_pred_phase3_rain3.rds') %>%
       filter(simulation == 33),
-    read_rds('Data/Inter_Data/Phase3_Imputation/DPAC/predictions/ORIGINAL/DPAC_YA_25_pred_phase3_rain3.rds') %>%
+    read_rds('Data/Inter_Data/Phase3_Imputation/DPAC/predictions/FINAL/DPAC_YA_25_pred_phase3_rain3.rds') %>%
       filter(simulation == 55),
-    read_rds('Data/Inter_Data/Phase3_Imputation/DPAC/predictions/ORIGINAL/DPAC_YA_45_pred_phase3_rain3.rds') %>%
+    read_rds('Data/Inter_Data/Phase3_Imputation/DPAC/predictions/FINAL/DPAC_YA_45_pred_phase3_rain3.rds') %>%
       filter(simulation == 77)
   )
 

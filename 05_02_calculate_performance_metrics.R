@@ -30,7 +30,7 @@ save_preformance_data <- function(PATH) {
 
 
 # Calculate performance indicators ----------------------------------------
-dpac_files <- list.files('Data/Output_Data/DPAC/ORIGINAL/', full.names = TRUE, recursive = FALSE, pattern = '.rds')
+dpac_files <- list.files('Data/Output_Data/DPAC/FINAL/', full.names = TRUE, recursive = FALSE, pattern = '.rds')
 
 walk(dpac_files, ~ save_preformance_data(.x))
 

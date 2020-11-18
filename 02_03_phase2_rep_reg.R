@@ -29,6 +29,7 @@ dpac_files <- list.files('Data/Inter_Data/Amputated_Subsets/DPAC/', full.names =
 df_model_performance <- vector('list')
 
 
+
 # Predict Using Rep Models ------------------------------------------------
 for (i in dpac_files) {
   # Read amputated flow data
@@ -49,9 +50,13 @@ for (i in dpac_files) {
   
   # Rep reg model parameters
   df_model_performance[[i]] <- df_model %>%
+    ungroup() %>%
     select(-data) %>%
     gather(model, fit, model_1:model_2) %>%
-    mutate(glance = map(fit, glance)) %>%
+    # handle cases when model cannot be fitted (https://aosmith.rbind.io/2020/08/31/handling-errors/)
+    # e.g. one rep has only 0 flows during the season, has no linear model fitted 
+    mutate(glance = map(fit, possibly(glance, otherwise = NULL))) %>%
+    mutate(map_df(fit, tidy)) %>%
     select(-fit) 
   
   # Select predictions for missing data only and transform the table
@@ -63,9 +68,11 @@ for (i in dpac_files) {
     full_join(dpac_keys) %>%
     select(-key) %>%
     spread(var, value) %>% 
-    mutate(comments = ifelse(is.na(flow_amp) & !is.na(flow_pred), "predicted via rep regression", NA),
-           # replace predicted measurements with acctual 
-           # NOTE: predictions were made for every point, including those that that were not amputated
+    mutate(comments = ifelse(is.na(flow_amp) & !is.na(flow_pred), 
+                             "predicted via rep regression", NA),
+           # replace predicted measurements with actual 
+           # NOTE: predictions were made for every point, 
+           # including those that that were not amputated
            flow_pred = ifelse(is.na(comments), flow_amp, flow_pred)) %>%
     arrange(simulation, plotid, date)
   
@@ -79,18 +86,30 @@ for (i in dpac_files) {
               compress = 'xz')
 }
 
+# Save model fit parameters
+df_model_performance %>%
+  bind_rows(.id = 'id') %>%
+  mutate(years = str_extract(id, pattern = 'Y.')) %>%
+  select(years, prop, simulation, season, model, glance,
+         # rename model fit variable names 
+         parameter_term = term, 
+         parameter_estimate = estimate,
+         parameter_std.error = std.error,
+         parameter_statistic = statistic,
+         parameter_p.value = p.value) %>%
+  unnest(glance) %>%
+  select(-c(statistic, p.value, df)) %>%
+  write_rds('Data/Inter_Data/Phase2_Imputation/DPAC_Phase2_model_parameters.rds',
+            compress = 'xz')
+
 
 
 # Plot prediction models --------------------------------------------------
-
-# Rep reg model parameters
+# Read model fit data
 dpac_model_performance <- 
-  df_model_performance %>%
-  bind_rows(.id = 'id') %>%
-  mutate(years = str_extract(id, pattern = 'Y.')) %>%
-  select(years, prop, simulation, season, model, glance) %>%
-  unnest(glance)
+  read_rds('Data/Inter_Data/Phase2_Imputation/DPAC_Phase2_model_parameters.rds')
 
+# Plot R^2 of the fitted models
 dpac_model_performance %>%
   arrange(simulation) %>%
   filter(model == "model_1") %>%
@@ -106,19 +125,30 @@ dpac_model_performance %>%
         strip.text = element_text(size = 14),
         axis.title = element_text(size = 14),
         text = element_text(size = 12))
-ggsave('Figs/models/rep_regression_model_rsquares.png',
+ggsave('Figs/phase2/rep_regression_model_rsquares.png',
        width = 16, height = 10)
 
 
-
-
-# OLD CODE > NEED TO BE UPDATED -------------------------------------------
-
-# Linear regression models and R2 by season at 5 different prop
+# Read 5 subsets of data from complete 10-year scenario
+dpac_subset_YA <- 
+  bind_rows(
+    read_rds('DAta/Inter_Data/Phase2_Imputation/DPAC/DPAC_YA_05_pred_phase2.rds') %>%
+      filter(simulation == 11),
+    read_rds('DAta/Inter_Data/Phase2_Imputation/DPAC/DPAC_YA_15_pred_phase2.rds') %>%
+      filter(simulation == 22),
+    read_rds('DAta/Inter_Data/Phase2_Imputation/DPAC/DPAC_YA_25_pred_phase2.rds') %>%
+      filter(simulation == 55),
+    read_rds('DAta/Inter_Data/Phase2_Imputation/DPAC/DPAC_YA_35_pred_phase2.rds') %>%
+      filter(simulation == 77),
+    read_rds('DAta/Inter_Data/Phase2_Imputation/DPAC/DPAC_YA_45_pred_phase2.rds') %>%
+      filter(simulation == 99)
+  )
+# Plot fitted linear model for each subset 
+# showing the linear models fitted 
 model = y ~ x - 1
-df_pred_phase2[c(11, 222, 555, 777, 999), ] %>%
-  unnest() %>%
-  select(-flow_pred) %>%
+dpac_subset_YA %>% 
+  unnest(data) %>% 
+  select(-flow_pred, -comments) %>% 
   spread(plotid, flow_amp) %>%
   ggplot(aes(NE, SW, col = season, group = prop)) +
   geom_point(na.rm = TRUE) +
@@ -126,8 +156,8 @@ df_pred_phase2[c(11, 222, 555, 777, 999), ] %>%
   ggpmisc::stat_poly_eq(formula = model,
                         eq.with.lhs = "italic(hat(y))~`=`~",
                         aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), 
-                        label.y = 12, label.x = 4, 
-                        col = 'black',
+                        label.y = 0.95, label.x = .1, 
+                        col = 'black', face = 'bold',
                         parse = TRUE) + 
   facet_grid(season ~ prop) +
   labs(col = 'Season') +
@@ -139,12 +169,12 @@ df_pred_phase2[c(11, 222, 555, 777, 999), ] %>%
         strip.text = element_text(size = 14),
         axis.title = element_text(size = 14),
         text = element_text(size = 12))
-ggsave('Figs/models/rep_regression_seasonal_models.png',
+ggsave('Figs/phase2/rep_regression_seasonal_models_5_subsets_from_YA.png',
        width = 16, height = 10)
 
-# Predictions
-df_pred_phase2[c(11, 222, 555, 777, 999), ] %>%
-  unnest() %>%
+# Phase 2 predictions for 2016
+dpac_subset_YA %>%
+  unnest(data) %>%
   filter(year(date) == 2016) %>%
   ggplot(aes(x = date, group = plotid)) +
   geom_point(data = . %>% filter(!is.na(comments)), 
@@ -162,13 +192,14 @@ df_pred_phase2[c(11, 222, 555, 777, 999), ] %>%
         axis.title = element_text(size = 14),
         strip.text = element_text(size = 14),
         text = element_text(size = 12))
-ggsave('Figs/predictions/rep_reg_predictions_2016.png',
+ggsave('Figs/phase2/Phase2_predictions_2016.png',
        width = 16, height = 10)
 
-
-# Predictions
-df_pred_phase2[c(11, 555, 999), ] %>%
-  unnest() %>%
+# Phase 2 predictions from Jan to Jun in 2016 
+# only for 5, 25, and 45% missing data
+dpac_subset_YA %>%
+  filter(prop %in% c(0.05, 0.25, 0.45)) %>%
+  unnest(data) %>%
   filter(year(date) == 2016 & month(date) < 7) %>%
   ggplot(aes(x = date, group = plotid)) +
   geom_point(data = . %>% filter(!is.na(comments)), 
@@ -186,7 +217,7 @@ df_pred_phase2[c(11, 555, 999), ] %>%
         axis.title = element_text(size = 18),
         strip.text = element_text(size = 18),
         text = element_text(size = 16))
-ggsave('Figs/predictions/rep_reg_predictions_2016_Jan_Jun.png',
+ggsave('Figs/phase2/Phase2_predictions_2016_Jan_Jun.png',
        width = 16, height = 10)
 
 

@@ -5,7 +5,7 @@ source(file = '00_project_settings.R')
 
 # Read Data ---------------------------------------------------------------
 
-dpac_files <- list.files('Data/Inter_Data/Phase3_Imputation/DPAC/predictions/ORIGINAL/',
+dpac_files <- list.files('Data/Inter_Data/Phase3_Imputation/DPAC/predictions/FINAL/',
                          full.names = TRUE)
 
 dpac_original <- 
@@ -20,8 +20,9 @@ combine_and_save <- function(FILE) {
   read_rds(FILE) %>%
     unnest(data) %>%
     left_join(dpac_original, by = c('plotid', 'date')) %>%
-    select(scenario, prop, sim = simulation, flow_type, api, plotid, season, date, flow, flow_pred, rain, everything()) %>%
-    write_rds(paste0('Data/Output_Data/DPAC/ORIGINAL/', basename(FILE)), 
+    select(scenario, prop, sim = simulation, flow_type, api, plotid, season, 
+           date, flow, flow_pred, rain, everything()) %>%
+    write_rds(paste0('Data/Output_Data/DPAC/FINAL/', basename(FILE)), 
               compress = 'xz')
 }
 

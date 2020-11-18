@@ -8,7 +8,8 @@ library(zoo)
 # Read Data ---------------------------------------------------------------
 df_flow <- read_rds('Data/Inter_Data/Phase2_Imputation/DPAC/DPAC_Y2_05_pred_phase2.rds')
 df_slopes <- read_rds('Data/Inter_Data/Phase3_Imputation/DPAC/DPAC_ave_recession_slopes.rds')
-df_rain <- read_rds('Data/Inter_Data/Phase3_Imputation/rolling_ave_precip.rds')
+df_rain <- read_rds('Data/Inter_Data/Phase3_Imputation/rolling_ave_precip.rds') %>%
+  select(-snowing)
 
 
 
@@ -31,7 +32,7 @@ model_fit <- function(df) {
     mutate(min_flow = mean(flow[season == "Summer"], na.rm = TRUE)#,
            # # .............................................................. ASSUMPTION 
            # # THIS IS PART OF ACTUAL GAP FILLING USED IN TD PROJECT!
-           # # correct limitting flow so it is not > 0.3 mm/day
+           # # correct limiting flow so it is not > 0.3 mm/day
            # min_flow = ifelse(min_flow > flow_limit, flow_limit, min_flow)
     ) %>%
     # add precipitation data
@@ -52,7 +53,7 @@ model_fit <- function(df) {
     left_join(SLOPES, by = c('simulation', 'prop', 'flow_type', 'plotid', 'season')) 
 }
 
-# function for imputting missing flow data
+# function for imputing missing flow data
 model_predict <- function(df) {
   df %>%
     filter(points > 3, !is.na(slope)) %>%
@@ -105,7 +106,7 @@ model_predict <- function(df) {
            flow_pred2_mean = round(flow_pred2 * exp(slope * count), 6),
            flow_pred = ifelse(is.na(flow_pred), flow_pred2_mean, flow_pred)) %>%
     select(-starts_with("flow_pred2"), -count) %>%
-    # remove predicitoins of flow in days when there was no rainfall data (see CRAWF)
+    # remove predictions of flow in days when there was no rainfall data (see CRAWF)
     mutate(flow_pred = ifelse(is.na(flow) & is.na(api), NA, flow_pred)) %>%
     select(-slope, -api, -min_flow) %>%
     mutate(comments = ifelse(is.na(flow) & !is.na(flow_pred), 'predicted via recession model', comments)) %>%
@@ -142,7 +143,7 @@ for (i in dpac_files) {
     PREDICTIONS %>%
       mutate(scenario = SCENARIO,
              api = paste(j, 'day rolling ave')) %>%
-      write_rds(paste0('Data/Inter_Data/Phase3_Imputation/DPAC/predictions/ORIGINAL/DPAC_', 
+      write_rds(paste0('Data/Inter_Data/Phase3_Imputation/DPAC/predictions/FINAL/DPAC_', 
                        SCENARIO, '_pred_phase3_rain', j, '.rds'),
                 compress = 'xz')
   }
@@ -150,58 +151,23 @@ for (i in dpac_files) {
 
 
 
-
-# THE OLD SCRIPT ----------------------------------------------------------
-
-# 11 YEARS
-df <- df_11Y
-source('03_impute_missing_data.R')
-write_rds(x = df_model, path = 'Data/Input_Data/RDS/DPAC_amp_MAR_regression_model_Y11.rds')
-write_rds(x = df_pred, path = 'Data/Input_Data/RDS/DPAC_amp_MAR_imputed_data_Y11.rds')
-
-
-# 6 YEARS
-df <- df_6Y
-source('03_impute_missing_data.R')
-write_rds(x = df_model, path = 'Data/Input_Data/RDS/DPAC_amp_MAR_regression_model_Y6.rds')
-write_rds(x = df_pred, path = 'Data/Input_Data/RDS/DPAC_amp_MAR_imputed_data_Y6.rds')
-
-
-# 2 YEARS
-df <- df_2Y
-source('03_impute_missing_data.R')
-write_rds(x = df_model, path = 'Data/Input_Data/RDS/DPAC_amp_MAR_regression_model_Y2.rds')
-write_rds(x = df_pred, path = 'Data/Input_Data/RDS/DPAC_amp_MAR_imputed_data_Y2.rds')
-
-
-# Some seasons are missing recession slope because of not having recession limbs or missing points
-df_model %>%
-  left_join(df_slopes_ave,
-            by = c('simulation', 'prop', 'flow_type', 'plotid', 'season')) %>%
-  filter(is.na(ave_slope), points > 5) %>%
-  filter(simulation == 801 & points == 19) %>%
-  unnest(data) %>%
-  mutate(year = year(date),
-         date = update(date, year = 2012)) %>%
-  ggplot(aes(date, flow)) + geom_point() + geom_line() + facet_grid(year ~ .) +
-  theme_light()
-
-
-
-
-
-
 # Plot Predictions --------------------------------------------------------
+# Read 5 subsets of data from complete 10-year scenario
+df_plot <- 
+  bind_rows(
+    read_rds('Data/Inter_Data/Phase3_Imputation/DPAC/predictions/FINAL/DPAC_YA_05_pred_phase3_rain3.rds') %>%
+      filter(simulation == 33),
+    read_rds('Data/Inter_Data/Phase3_Imputation/DPAC/predictions/FINAL/DPAC_YA_25_pred_phase3_rain3.rds') %>%
+      filter(simulation == 55),
+    read_rds('Data/Inter_Data/Phase3_Imputation/DPAC/predictions/FINAL/DPAC_YA_45_pred_phase3_rain3.rds') %>%
+      filter(simulation == 77)
+  )
 
-df_plot <- read_rds('Data/Input_Data/RDS/DPAC_amp_MAR_imputed_data_Y11.rds') 
-df_plot <- read_rds('Data/Inter_Data/Phase3_Imputation/DPAC/predictions/ORIGINAL/DPAC_Y4_25_pred_phase3_rain3.rds') 
-
-# Predictions
+# Phase 3 predictions for 2016
 df_plot %>%
-  filter(simulation %in% c(11, 55, 199)) %>%
-  filter(flow_type == 'flow_pred') %>%    # select data that prdicted by both modules
-  # filter(model_name == 'reg_model_3_day_avg') %>%
-  unnest() %>%
+  ungroup() %>%
+  filter(flow_type == 'flow_pred') %>%    # select data that predicted by both modules
+  unnest(data) %>%
   filter(year(date) == 2016 & month(date) < 7) %>%
   ggplot(aes(x = date, group = plotid)) +
   geom_point(aes(y = flow_pred), size = 1, alpha = 0.75) + 
@@ -221,14 +187,7 @@ df_plot %>%
         axis.title = element_text(size = 18),
         strip.text = element_text(size = 18),
         text = element_text(size = 16))
-ggsave('Figs/predictions/all_predictions_2016_Jan_Jun.png',
+ggsave('Figs/phase3/Phase3_predictions_2016_Jan_Jun.png',
        width = 16, height = 10)
-
-
-
-
-
-
-
 
 

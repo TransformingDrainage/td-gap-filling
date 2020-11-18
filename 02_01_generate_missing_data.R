@@ -53,7 +53,7 @@ my_odds <- matrix(1, nrow = 3, ncol = 4)
 df %>% 
   filter(siteid == "DPAC") %>%
   filter(!is.na(flow)) %>%
-  select(-siteid) %>%
+  select(-siteid, -snowing) %>%
   spread(plotid, flow) -> DPAC
 
 # ........................................

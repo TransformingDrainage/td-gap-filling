@@ -4,8 +4,12 @@ source(file = '00_project_settings.R')
 
 
 # Read and Combine Performance metrics data
-read_preformance_data <- function(PATTERN = 'DPAC_Y') {
-  list.files('Data/Output_Data/DPAC/ORIGINAL/STATS/', 
+read_preformance_data <- function(PATTERN = 'DPAC_Y',
+                                  PATH = 'Data/Output_Data/DPAC/FINAL/STATS/') {
+  if (PATH != 'Data/Output_Data/DPAC/FINAL/STATS/') {
+    PATH <- paste0('Data/Output_Data/DPAC/FINAL/STATS/', PATH, '/')
+  }
+  list.files(path = PATH, 
              full.names = TRUE, 
              pattern = PATTERN) %>%
     map(~ read_rds(.x))
@@ -14,28 +18,99 @@ read_preformance_data <- function(PATTERN = 'DPAC_Y') {
 Y2 <- read_preformance_data('Y2') %>%
   bind_rows()
 
+Y4 <- read_preformance_data('Y4') %>%
+  bind_rows()
+
+Y6 <- read_preformance_data('Y6') %>%
+  bind_rows()
+
+Y8 <- read_preformance_data('Y8') %>%
+  bind_rows()
+
 YA <- read_preformance_data('YA') %>%
   bind_rows()
 
-YAll <- read_preformance_data() %>%
+YA_seasonal <- read_preformance_data('YA', 'SEASONAL') %>%
   bind_rows()
+
+YA_yearly <- read_preformance_data('YA', 'YEARLY') %>%
+  bind_rows()
+
+# Combine all data
+YALL <-
+  mget(ls(pattern = 'Y.$')) %>%
+  bind_rows() %>%
+  mutate(Years = str_sub(scenario, -1),
+         Years = ifelse(Years == 'A', 10, Years),
+         Years = as.numeric(Years)) 
 
 
 # PLOT
 
-YA %>%
+YALL %>%
+  select(-sim) %>%
+  group_by(Years, scenario,  prop, flow_type, api) %>%
+  summarise_all(mean) %>%
+  ungroup() %>%
+  gather(key, value, O:NSE) %>%
+  # mutate_at(c('prop'), as.factor) %>%
+  filter(api == '3 day rolling ave',
+         flow_type == 'flow_pred') %>%
+  ggplot(aes(prop, value, col = scenario)) +
+  geom_point() +
+  geom_line() +
+  facet_wrap(~ key, scales = 'free', ncol = 3) +
+  scale_x_continuous(breaks = seq(0.05, 0.45, 0.10)) +
+  theme_light() +
+  theme(panel.grid.minor = element_blank())
+
+
+YALL %>%
+  select(-sim) %>%
+  group_by(Years, scenario,  prop, flow_type, api) %>%
+  summarise_all(mean) %>%
+  ungroup() %>%
+  gather(key, value, O:NSE) %>%
+  mutate_at(c('prop'), as.factor) %>%
+  filter(api == '3 day rolling ave',
+         flow_type == 'flow_pred') %>%
+  ggplot(aes(Years, value, col = prop)) +
+  geom_point() +
+  geom_line() +
+  facet_wrap(~ key, scales = 'free', ncol = 3) +
+  theme_light() +
+  theme(panel.grid.minor = element_blank())
+
+
+Y2 %>%
   ggplot(aes(as.factor(prop), AE, col = api)) +
   geom_boxplot() +
   facet_grid(flow_type ~ plotid) +
   theme_light()
 
+Y2 %>% 
+  mutate_at(c('prop'), as.factor) %>%
+  gather(key, value, O:NSE) %>%
+  ggplot(aes(prop, value)) +
+  geom_boxplot(aes(fill = flow_type)) +
+  facet_wrap(~ key, scales = 'free') +
+  theme_light()
+
+YA %>% 
+  filter(api == '3 day rolling ave') %>%
+  mutate_at(c('prop'), as.factor) %>%
+  gather(key, value, O:NSE) %>%
+  ggplot(aes(prop, value)) +
+  geom_boxplot(aes(fill = flow_type)) +
+  facet_wrap(~ key, scales = 'free') +
+  theme_light()
 
 
 
 # Plot for Presentation ---------------------------------------------------
 
 # RMSE for base model (3-day-average with step 3+4 for 11 years)
-YA %>%
+Y2 %>%
   filter(api == '3 day rolling ave',
          flow_type == 'flow_pred') %>%
   ggplot(aes(as.factor(prop), NRMSE)) +
